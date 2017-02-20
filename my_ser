@@ -1,0 +1,53 @@
+import javax.annotation.Generated;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.FormParam;
+import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import javax.ws.rs.core.MediaType;
+
+/**
+ *
+ * @author kpatel
+ */
+@Path("/shreyansh")
+public class MyService {
+    BusinessModelMobile businessModelMobile = new BusinessModelMobile();    
+    
+        @POST
+	@Path("/register")
+	@Produces("text/plain")
+	public String register(@FormParam("UserName") String userName, 
+                               @FormParam("Password") String Password) {
+		// return super.find(id);
+		String result = businessModelMobile.LoginCredentials(userName,Password);
+		return result;
+	}
+        
+        @POST
+	@Path("/signup")
+	@Produces("text/plain")
+	@Consumes(MediaType.APPLICATION_JSON)
+	public String signup(Employee employee) {
+
+		String result = businessModelMobile.signupCredentials(employee);
+		return result;
+	}
+        
+        @POST
+        @Path("/sendEmployeeDetails")
+	@Produces(MediaType.APPLICATION_JSON)
+	public Employee sendEmployeeDetails(@FormParam("UserId") int userId){
+               System.out.println("userid" + userId);
+               Employee employee = businessModelMobile.sendEmployee(userId);
+               return employee;
+	}
+        
+        @GET
+	@Produces("text/plain")
+	public String hello(){ 
+               return "hello";
+	}
+        
+}
