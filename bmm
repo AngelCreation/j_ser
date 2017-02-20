@@ -1,0 +1,123 @@
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+/**
+ *
+ * @author kpatel
+ */
+public class BusinessModelMobile {
+    static Connection dbConn = null;
+    private ResultSet rs;
+    
+    public String LoginCredentials(String uname,String pass){
+        try {
+            if(dbConn == null){
+                try {
+                    dbConn = DbConnection.createConnection();
+                } catch (Exception ex) {
+                    Logger.getLogger(BusinessModelMobile.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }            
+            
+            rs = dbConn.createStatement().executeQuery("Select * from employeedetail where FirstName = '" + uname + "';");
+            if(rs.next()){
+                rs = dbConn.createStatement().executeQuery("Select * from employeedetail where FirstName = '" + uname + "' and Password = '" + pass + "';");
+                if(rs.next()) {
+                    return "Login Successful " + rs.getInt("EmployeeId");
+                } else{
+                   return "User name and password does not match.";                           
+                }                
+            } else {
+                return "Account with this username does not exist";
+            }
+            
+//            String query = "INSERT INTO `registration`.`register` (`UserId`,`UserName`,`Password`) VALUES (null,?,?);";
+//            PreparedStatement ps = dbConn.prepareStatement(query);
+//            ps.setString(1, uname);
+//            ps.setString(2, pass);
+//            
+//            int i = ps.executeUpdate();
+//            
+//            if(i > 0) {
+//                return "Success::Your account has been registered successfully";
+//            }
+            
+        } catch(Exception e){
+            e.printStackTrace();
+        }        
+        return "Failed::Error in registration! Please try again later.";        
+    }
+    
+    
+    public String signupCredentials(Employee employee) {
+        try{
+            if(dbConn == null){
+                try {
+                    dbConn = DbConnection.createConnection();
+                } catch (Exception ex) {
+                    Logger.getLogger(BusinessModelMobile.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+            
+            rs = dbConn.createStatement().executeQuery("Select * from employeedetail where FirstName = '" + employee.getFirstName() + "';");
+            
+            if(rs.next()){
+                return "Failed::Account with this Username already exists. Please try with different Username";
+            }
+            
+            String query = "INSERT INTO `registration`.`employeedetail` (`EmployeeId`,`FirstName`,`LastName`,`Password`,`Sex`) VALUES (null,?,?,?,?);";
+            PreparedStatement ps = dbConn.prepareStatement(query);
+            ps.setString(1, employee.getFirstName());
+            ps.setString(2, employee.getLastName());
+            ps.setString(3, employee.getPassword());
+            ps.setString(4, employee.getSex());
+            
+            int i = ps.executeUpdate();
+            
+            if(i > 0) {
+                return "Success::Your account has been created successfully";
+            }
+            
+        } catch(Exception e){
+            e.printStackTrace();
+        } 
+        return "Failed::Error in sign up! Please try again later.";        
+    }
+    
+    public Employee sendEmployee(int userId){
+        try{
+            if(dbConn == null){
+                try {
+                    dbConn = DbConnection.createConnection();
+                } catch (Exception ex) {
+                    Logger.getLogger(BusinessModelMobile.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+            
+            rs = dbConn.createStatement().executeQuery("Select * from employeedetail where EmployeeId = '" + userId + "';");
+            
+            if(rs.next()) {
+                Employee employee = new Employee();
+                employee.setEmpId(rs.getInt("EmployeeId"));
+                employee.setFirstName(rs.getString("FirstName"));
+                employee.setLastName(rs.getString("LastName"));
+                employee.setPassword(rs.getString("Password"));
+                employee.setSex(rs.getString("Sex"));
+                return employee;
+            }
+            
+        } catch(Exception e){
+            e.printStackTrace();
+        } 
+        return null;
+    }
+}
+
+
+//con
+ Class.forName("com.mysql.jdbc.Driver");
+        Connection con = DriverManager.getConnection("jdbc:mysql://localhost:3306/registration","samyak","samyak");
