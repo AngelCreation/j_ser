@@ -1,0 +1,210 @@
+package com.samyak.dailyRideScheduler;
+
+import java.sql.Connection;
+import java.sql.Date;
+import java.sql.ResultSet;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collections;
+
+import org.quartz.Job;
+import org.quartz.JobExecutionContext;
+import org.quartz.JobExecutionException;
+
+import com.samyak.beans.PostRideBean;
+
+import entities.BusinessModelMobile;
+
+public class SchedulerJob implements Job {
+	static Connection dbConn = null;
+
+	@Override
+	public void execute(JobExecutionContext arg0) throws JobExecutionException {
+		Calendar calendar = Calendar.getInstance();
+		postRide(calendar);
+
+		calendar.add(Calendar.DATE, 1);
+		postRide(calendar);
+
+		calendar.add(Calendar.DATE, 1);
+		postRide(calendar);
+
+	}
+
+	private void postRide(Calendar calendar) {
+		Date date = new Date(calendar.getTimeInMillis());
+		SimpleDateFormat dateFormatToPost = new SimpleDateFormat("dd-MM-yyyy");
+		SimpleDateFormat timeFormatToPost = new SimpleDateFormat("HH:mm");
+		try {
+			try {
+				if (dbConn == null) {
+					dbConn = entities.DBConnection.createConnection();
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			String query = "select * from samyakinfoadmin_sharemycar.dailyridemaster as rm left join samyakinfoadmin_sharemycar.dailyridemaster_days as dy ON rm.rideId = dy.rideId where rm.status = 1 and rm.isDeleted = 0 and rm.fromdailydate <= '"
+					+ date + "' and rm.todailydate >= '" + date + "' ";
+			int a = calendar.get(Calendar.DAY_OF_WEEK);
+			switch (a) {
+			case Calendar.SUNDAY:
+				query += "and dy.sun=1 ";
+				break;
+			case Calendar.MONDAY:
+				query += "and dy.mon=1 ";
+				break;
+			case Calendar.TUESDAY:
+				query += "and dy.tue=1 ";
+				break;
+			case Calendar.WEDNESDAY:
+				query += "and dy.wed=1 ";
+				break;
+			case Calendar.THURSDAY:
+				query += "and dy.thu=1 ";
+				break;
+			case Calendar.FRIDAY:
+				query += "and dy.fri=1 ";
+				break;
+			case Calendar.SATURDAY:
+				query += "and dy.sat=1 ";
+				break;
+			default:
+				break;
+			}
+			ResultSet rows = dbConn.createStatement().executeQuery(query);
+			while (rows.next()) {
+				ResultSet rs = dbConn.createStatement()
+						.executeQuery("select * from dailyridemaster_schedulerhandle where dailyrideId='"
+								+ rows.getInt("rideId") + "' and scheduleDate='" + date + "';");
+				if (!rs.next()) {
+
+					PostRideBean postRideBean = new PostRideBean();
+					postRideBean.setUserId(rows.getInt("userId"));
+					postRideBean.setDateRide(dateFormatToPost.format(date).toString());
+					postRideBean.setTimeRide(timeFormatToPost.format(rows.getTime("timeDaily")).toString());
+					postRideBean.setFromCity(rows.getString("fromCity"));
+					postRideBean.setToCity(rows.getString("toCity"));
+					postRideBean.setFromLat(rows.getDouble("fromLat"));
+					postRideBean.setToLat(rows.getDouble("toLat"));
+					postRideBean.setFromLong(rows.getDouble("fromLong"));
+					postRideBean.setToLong(rows.getDouble("toLong"));
+					postRideBean.setTotal(rows.getString("pricePerPerson"));
+					postRideBean.setNoOfPerson(rows.getString("noOfSeatsAvailable"));
+					postRideBean.setRideMessage(rows.getString("rideMessage"));
+
+					ArrayList<Integer> pricePerPerson = new ArrayList<Integer>(Collections.nCopies(6, 0));
+					ArrayList<String> rideTime = new ArrayList<String>(Collections.nCopies(6, "null"));
+					ArrayList<String> stops = new ArrayList<String>(Collections.nCopies(5, "null"));
+					ArrayList<Integer> distance = new ArrayList<Integer>(Collections.nCopies(6, 0));
+					if (rows.getInt("noOfStops") == 0) {
+
+						pricePerPerson.set(0, rows.getInt("pricePerPerson"));
+						rideTime.set(0, rows.getString("rideTimeStopZero"));
+						distance.set(0, rows.getInt("distance"));
+
+					} else {
+
+						ResultSet stopageRows = dbConn.createStatement().executeQuery(
+								"SELECT * FROM samyakinfoadmin_sharemycar.dailyridemaster_stopageinformation where rideId='"
+										+ rows.getInt("rideId") + "' order by stopageId asc;");
+						int i = 0;
+						while (stopageRows.next()) {
+							pricePerPerson.set(i, stopageRows.getInt("pricePerPerson"));
+							rideTime.set(i, stopageRows.getString("travelTime"));
+							distance.set(i, stopageRows.getInt("distance"));
+							if (i != 0) {
+								stops.set(i - 1, stopageRows.getString("stopageFromPlaceName"));
+							}
+							i++;
+						}
+					}
+					postRideBean.setPricePerPerson(pricePerPerson);
+					postRideBean.setRideTime(rideTime);
+					postRideBean.setDistance(distance);
+					postRideBean.setStops(stops);
+
+					postRideBean.setIsRideDaily(true);
+
+					System.out.println(postRideBean.toString());
+					String rideid = new BusinessModelMobile().postRideNew(postRideBean);
+					dbConn.createStatement().executeUpdate(
+							"INSERT INTO `samyakinfoadmin_sharemycar`.`dailyridemaster_schedulerhandle` (`scheduleId`,`dailyrideId`,`scheduleDate`,`schedulePostTime`,`rideId`) VALUES (null,'"
+									+ rows.getInt("rideId") + "','" + date + "',now(),'" + rideid + "');");
+
+				}
+			}
+
+			// i.last();
+			// System.out.println(calendar.get(Calendar.MINUTE) + " " +
+			// calendar.get(Calendar.SECOND) + " " + i.getRow());
+			// System.out.println(query);
+
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+}
+
+
+
+
+
+
+
+package com.samyak.dailyRideScheduler;
+
+import javax.servlet.ServletContextEvent;
+import javax.servlet.ServletContextListener;
+
+import org.quartz.JobDetail;
+import org.quartz.Scheduler;
+import org.quartz.SchedulerException;
+import org.quartz.SimpleScheduleBuilder;
+import org.quartz.Trigger;
+import org.quartz.TriggerBuilder;
+import org.quartz.impl.StdSchedulerFactory;
+
+public class SchedulerTask implements ServletContextListener {
+	Scheduler scheduler = null;
+
+	@Override
+	public void contextDestroyed(ServletContextEvent servletContext) {
+		System.out.println("Context Destroyed");
+		try {
+			scheduler.shutdown();
+		} catch (SchedulerException e) {
+			e.printStackTrace();
+		}
+	}
+
+	@Override
+	public void contextInitialized(ServletContextEvent servletContext) {
+		System.out.println("Context Initialized");
+
+		try {
+			// .withSchedule(CronScheduleBuilder.cronSchedule("0/5 * * * * ?"))
+			// Setup the Job class and the Job group
+			JobDetail job = org.quartz.JobBuilder.newJob(SchedulerJob.class).withIdentity("CronQuartzJob", "Group")
+					.build();
+
+			Trigger trigger = TriggerBuilder.newTrigger().withIdentity("TriggerName", "Group")
+					.withSchedule(SimpleScheduleBuilder.simpleSchedule().withIntervalInMinutes(5).repeatForever())
+					.build();
+
+			// Create a Trigger that fires every 5 minutes.
+			// Trigger trigger = newTrigger()
+			// .withIdentity("TriggerName", "Group")
+			// .withSchedule(CronScheduleBuilder.cronSchedule("0 0 24 * * ?"))
+			// .build();
+
+			// Setup the Job and Trigger with Scheduler & schedule jobs
+			scheduler = new StdSchedulerFactory().getScheduler();
+			scheduler.start();
+			scheduler.scheduleJob(job, trigger);
+		} catch (SchedulerException e) {
+			e.printStackTrace();
+		}
+	}
+}
